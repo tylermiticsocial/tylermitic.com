@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://tylermitic.com/sitemap-index.xml
