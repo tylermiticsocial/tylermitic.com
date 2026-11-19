@@ -253,23 +253,21 @@
           const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true });
           if (!gl) return false;
 
+          // How many jittered passes to average (more = smoother shadows, AO and edges)
+          const params = new URLSearchParams(location.search);
+          const SAMPLES = Math.max(1, Math.min(64, +params.get('samples') || 32));
+          const BUDGET_MS = params.has('samples') ? Infinity : 8000; // stop refining after 8 s on slow devices
+
           const VERT = `#version 300 es
           void main() {
             vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
             gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
           }`;
 
-          const FRAG = `#version 300 es
+          const COMMON = `#version 300 es
           precision highp float;
-          uniform sampler2D uHeight;  // object height (texture px), y-up
-          uniform sampler2D uAlbedo;  // sRGB colour
-          uniform sampler2D uGroup;   // tile group id (0 = none)
-          uniform vec2 uRes;          // texture / canvas size in px
+          uniform vec2 uRes;          // canvas size in device px
           uniform float uScale;       // device px per CSS px
-          uniform vec4 uPuff;         // per-tile hover puff (1 = resting)
-          out vec4 fragColor;
-
-          const vec3 LIGHT = vec3(-0.5306, 0.5984, 0.6003);   // normalized: from the top-left
 
           float hash(vec2 p) {
             vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -292,11 +290,35 @@
             return s;
           }
 
+          // Photographic finish: soft filmic curve, gentle vignette, fine grain
+          vec3 finish(vec3 c, vec2 fragPx) {
+            c = c * 1.04 / (1.0 + c * 0.12);
+            vec2 v = (fragPx / uRes - 0.5) * vec2(uRes.x / max(uRes.y, uRes.x * 0.6), 1.0);
+            c *= 1.0 - 0.10 * smoothstep(0.35, 0.95, length(v));
+            c = pow(max(c, 0.0), vec3(1.0 / 2.2));
+            c += (hash(fragPx * 0.37 + 11.0) - 0.5) * (1.6 / 255.0);
+            return c;
+          }
+          `;
+
+          const FRAG = COMMON + `
+          uniform sampler2D uHeight;  // object height (texture px), y-up
+          uniform sampler2D uAlbedo;  // sRGB colour
+          uniform sampler2D uGroup;   // tile group id (0 = none)
+          uniform vec4 uPuff;         // per-tile hover puff (1 = resting)
+          uniform vec2 uJitter;       // sub-pixel offset for this pass
+          uniform vec2 uLightJ;       // point on the area light for this pass
+          uniform float uSeed;        // per-pass random seed
+          uniform bool uDirect;       // true: no float buffer, write display colour
+          out vec4 fragColor;
+
+          const vec3 LIGHT = vec3(-0.5306, 0.5984, 0.6003);   // key light from the top-left
+          const vec3 FILL = vec3(0.62, -0.35, 0.70);           // soft cool fill from the lower right
+
           float puffAt(vec2 uv) {
             int g = int(texture(uGroup, uv).r * 255.0 + 0.5);
             return g == 1 ? uPuff.x : g == 2 ? uPuff.y : g == 3 ? uPuff.z : g == 4 ? uPuff.w : 1.0;
           }
-          // Height of the sculpted pieces, in CSS px
           float objH(vec2 uv) {
             return texture(uHeight, uv).r / uScale * puffAt(uv);
           }
@@ -311,7 +333,7 @@
               if (hash(c * 1.7) > 0.45) continue;
               vec2 center = (c + vec2(hash(c), hash(c + 7.1))) * 46.0;
               vec2 d = q - center;
-              d = mat2(1.0, 0.0, 0.0, 0.7 + 0.5 * hash(c + 3.3)) * d;   // oval prints
+              d = mat2(1.0, 0.0, 0.0, 0.7 + 0.5 * hash(c + 3.3)) * d;
               float r = length(d);
               float fade = smoothstep(26.0, 8.0, r);
               ridges += sin(r * 1.9 + noise(q * 0.15) * 5.0 + noise(q * 0.5)) * fade * (0.6 + 0.4 * noise(q * 0.3));
@@ -319,33 +341,68 @@
             return ridges;
           }
 
-          // Full surface height (CSS px) at CSS position q / texture uv
+          // Little crumbs of coloured clay left on the slab
+          const vec3 PAL[7] = vec3[7](vec3(0.875, 0.263, 0.224), vec3(0.937, 0.541, 0.165), vec3(0.953, 0.753, 0.173),
+                                      vec3(0.325, 0.671, 0.298), vec3(0.227, 0.518, 0.816), vec3(0.310, 0.333, 0.714), vec3(0.592, 0.314, 0.698));
+          float crumb(vec2 q, out vec3 color) {
+            vec2 cell = floor(q / 40.0);
+            float h = 0.0;
+            color = vec3(-1.0);
+            for (int j = -1; j <= 1; j++)
+            for (int i = -1; i <= 1; i++) {
+              vec2 c = cell + vec2(i, j);
+              if (hash(c + 41.0) > 0.03) continue;
+              vec2 center = (c + vec2(hash(c + 5.0), hash(c + 9.0))) * 40.0;
+              float r = 1.6 + hash(c + 2.0) * 2.4;
+              // keep crumbs clear of the letters, tiles and pebbles
+              vec2 cuv = center * uScale / uRes;
+              vec2 m = vec2(r + 6.0) * uScale / uRes;
+              if (texture(uHeight, cuv).r + texture(uHeight, cuv + vec2(m.x, 0)).r + texture(uHeight, cuv - vec2(m.x, 0)).r
+                + texture(uHeight, cuv + vec2(0, m.y)).r + texture(uHeight, cuv - vec2(0, m.y)).r > 0.0) continue;
+              vec2 d = (q - center) * vec2(1.0, 1.0 + 0.5 * hash(c + 4.0));
+              d += (vec2(noise(q * 0.9 + c), noise(q * 0.9 - c)) - 0.5) * 0.8;
+              float t = 1.0 - dot(d, d) / (r * r);
+              if (t > 0.0) {
+                h = max(h, r * 0.8 * sqrt(t));
+                color = PAL[int(hash(c + 13.0) * 7.0)];
+              }
+            }
+            return h;
+          }
+
+          // Full surface height (CSS px)
           float surface(vec2 q, vec2 uv, out float obj) {
             obj = objH(uv);
             float cover = smoothstep(0.2, 2.5, obj);
-            // the slab: broad thumb-pressed lumps, trowel smears, a little grit
             float slab = fbm(q * 0.0045, 4) * 7.0
                        + abs(fbm(q * vec2(0.011, 0.02) + 7.0, 3) - 0.5) * 3.2
-                       + fbm(q * 0.3, 2) * 0.3;
-            // the clay pieces: soft lumps, small dents and fingerprints
+                       + fbm(q * 0.3, 2) * 0.3
+                       + (noise(q * 1.4) - 0.5) * 0.06;
             float detail = (fbm(q * 0.06 + 11.0, 4) - 0.5) * 1.8
                          + (fbm(q * 0.25 + 5.0, 2) - 0.5) * 0.35
-                         + fingerprints(q) * 0.07;
-            return slab + obj + detail * cover;
+                         + fingerprints(q) * 0.07
+                         + (noise(q * 1.7) - 0.5) * 0.09;          // pores
+            vec3 cc;
+            float crumbs = crumb(q, cc) * (1.0 - cover);
+            return slab + obj + detail * cover + crumbs;
           }
 
           vec3 toLinear(vec3 c) { return pow(c, vec3(2.2)); }
 
           void main() {
-            vec2 px = gl_FragCoord.xy;
+            vec2 frag = gl_FragCoord.xy;
+            vec2 px = frag + uJitter;
             vec2 q = px / uScale;
+            float rnd = hash(frag + uSeed * 17.31);
+            float rnd2 = hash(frag.yx * 1.37 + uSeed * 5.77);
 
-            // hand-built wobble: everything is pushed around a little
+            // hand-built wobble
             vec2 warp = (vec2(fbm(q * 0.028, 3), fbm(q * 0.028 + 19.3, 3)) - 0.5) * 4.5;
             vec2 uv = (px + warp * uScale) / uRes;
+            vec2 toUv = vec2(uScale) / uRes;
 
-            float dq = 1.0 / uScale;
-            vec2 tx = vec2(1.0 / uRes.x, 0.0), ty = vec2(0.0, 1.0 / uRes.y);
+            float dq = 0.75 / uScale;
+            vec2 tx = vec2(0.75 / uRes.x, 0.0), ty = vec2(0.0, 0.75 / uRes.y);
             float o0, o1;
             float h0 = surface(q, uv, o0);
             float hx1 = surface(q + vec2(dq, 0.0), uv + tx, o1);
@@ -354,71 +411,96 @@
             float hy0 = surface(q - vec2(0.0, dq), uv - ty, o1);
             vec3 N = normalize(vec3((hx0 - hx1) / (2.0 * dq), (hy0 - hy1) / (2.0 * dq), 1.0));
 
-            // soft shadows: march across the height map toward the light
-            vec2 ld = normalize(LIGHT.xy);
-            float slope = LIGHT.z / length(LIGHT.xy);
-            float shadow = 1.0;
-            for (int i = 1; i <= 56; i++) {
-              float t = float(i) * 1.2;
-              float hs = objH(uv + ld * t * uScale / uRes);
-              float ray = o0 + t * slope;
-              shadow = min(shadow, clamp(0.5 + (ray - hs) / (0.4 * t + 0.6), 0.0, 1.0));
-            }
-            shadow = shadow * shadow * (3.0 - 2.0 * shadow);
+            // area light: each pass sees a different point on a soft lamp
+            vec3 t1 = normalize(cross(LIGHT, vec3(0.0, 0.0, 1.0)));
+            vec3 t2 = cross(t1, LIGHT);
+            vec3 L = normalize(LIGHT + (t1 * uLightJ.x + t2 * uLightJ.y) * 0.22);
 
-            // ambient occlusion: how much clay crowds around this point
-            float ao = 0.0;
-            for (int i = 0; i < 24; i++) {
-              float a = float(i) * 2.39996;
-              float r = 1.5 + float(i) * 1.1;
-              float hs = objH(uv + vec2(cos(a), sin(a)) * r * uScale / uRes);
-              ao += clamp((hs - o0) / r, 0.0, 1.0) * (1.0 - float(i) / 28.0);
+            // shadows: march across the height map toward this light sample
+            vec2 ld = normalize(L.xy);
+            float slope = L.z / length(L.xy);
+            float shadow = 1.0;
+            for (int i = 0; i < 64; i++) {
+              float t = (float(i) + rnd) * 1.1 + 0.4;
+              float hs = objH(uv + ld * t * toUv);
+              float ray = o0 + t * slope;
+              shadow = min(shadow, clamp((ray - hs) / 0.7 + 0.5, 0.0, 1.0));
             }
-            ao = clamp(1.0 - ao * 0.11, 0.3, 1.0);
+
+            // ambient occlusion + light bounced off nearby coloured clay
+            float ao = 0.0;
+            vec3 bounce = vec3(0.0);
+            float rot = rnd * 6.2832;
+            for (int i = 0; i < 16; i++) {
+              float a = rot + float(i) * 2.39996;
+              float r = 1.2 + (float(i) + rnd2) * 1.7;
+              vec2 suv = uv + vec2(cos(a), sin(a)) * r * toUv;
+              float hs = objH(suv);
+              float occ = clamp((hs - o0) / r, 0.0, 1.0);
+              float w = 1.0 - float(i) / 20.0;
+              ao += occ * w;
+              bounce += toLinear(texture(uAlbedo, suv).rgb) * occ * w;
+            }
+            bounce /= 16.0;
+            ao = clamp(1.0 - ao * 0.14, 0.22, 1.0);
 
             // colour: clay is never perfectly even
-            vec3 base = texture(uAlbedo, uv).rgb;
-            vec3 albedo = toLinear(base);
+            vec3 albedo = toLinear(texture(uAlbedo, uv).rgb);
+            vec3 cc;
+            if (crumb(q, cc) > 0.05 && o0 < 0.2) albedo = toLinear(cc);
             albedo *= 0.92 + 0.13 * fbm(q * 0.03 + 3.0, 3);
-            albedo *= 0.97 + 0.06 * noise(q * 0.9);
+            albedo *= 0.965 + 0.07 * noise(q * 0.9);
 
-            // matte clay lighting: wrapped diffuse, sky fill, no gloss
-            float ndl = dot(N, LIGHT);
-            float diffuse = clamp((ndl + 0.25) / 1.25, 0.0, 1.0);
-            vec3 sun = vec3(1.0, 0.95, 0.88) * 0.95;
-            vec3 sky = mix(vec3(0.20, 0.19, 0.21), vec3(0.40, 0.41, 0.45), N.z * 0.5 + 0.5);
-            vec3 col = albedo * (sun * diffuse * shadow + sky * ao);
-            col += albedo * albedo * 0.10 * (1.0 - diffuse) * ao;    // light soaking into the clay
-            col += vec3(0.008) * pow(max(dot(N, normalize(LIGHT + vec3(0, 0, 1))), 0.0), 4.0) * shadow;
+            // matte clay lighting
+            float diffuse = clamp((dot(N, L) + 0.22) / 1.22, 0.0, 1.0);
+            float fill = clamp((dot(N, normalize(FILL)) + 0.4) / 1.4, 0.0, 1.0);
+            vec3 sun = vec3(1.0, 0.95, 0.87) * 0.98;
+            vec3 sky = mix(vec3(0.17, 0.16, 0.18), vec3(0.36, 0.37, 0.41), N.z * 0.5 + 0.5);
+            vec3 col = albedo * (sun * diffuse * shadow + sky * ao + vec3(0.07, 0.08, 0.10) * fill * ao);
+            col += albedo * bounce * 0.55 * (1.0 - 0.5 * shadow);                  // colour bleeding
+            col += albedo * albedo * 0.12 * (1.0 - diffuse) * ao;                   // light soaking into the clay
+            col += vec3(0.006) * pow(max(dot(N, normalize(L + vec3(0, 0, 1))), 0.0), 4.0) * shadow;
 
-            col = col / (1.0 + col * 0.12);
-            fragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+            fragColor = vec4(uDirect ? finish(col, frag) : col, 1.0);
           }`;
 
-          function compile(type, src) {
-            const s = gl.createShader(type);
-            gl.shaderSource(s, src);
-            gl.compileShader(s);
-            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-              console.warn(gl.getShaderInfoLog(s));
-              return null;
-            }
-            return s;
+          const PRESENT = COMMON + `
+          uniform sampler2D uAccum;
+          out vec4 fragColor;
+          void main() {
+            fragColor = vec4(finish(texture(uAccum, gl_FragCoord.xy / uRes).rgb, gl_FragCoord.xy), 1.0);
+          }`;
+
+          function program(fragSrc) {
+            const make = (type, src) => {
+              const sh = gl.createShader(type);
+              gl.shaderSource(sh, src);
+              gl.compileShader(sh);
+              if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                console.warn(gl.getShaderInfoLog(sh));
+                return null;
+              }
+              return sh;
+            };
+            const vs = make(gl.VERTEX_SHADER, VERT), fs = make(gl.FRAGMENT_SHADER, fragSrc);
+            if (!vs || !fs) return null;
+            const pr = gl.createProgram();
+            gl.attachShader(pr, vs);
+            gl.attachShader(pr, fs);
+            gl.linkProgram(pr);
+            if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return null;
+            const loc = {};
+            const U = (n) => (n in loc ? loc[n] : (loc[n] = gl.getUniformLocation(pr, n)));
+            return { pr, U };
           }
-          const vs = compile(gl.VERTEX_SHADER, VERT);
-          const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-          if (!vs || !fs) return false;
-          const prog = gl.createProgram();
-          gl.attachShader(prog, vs);
-          gl.attachShader(prog, fs);
-          gl.linkProgram(prog);
-          if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
-          gl.useProgram(prog);
+          const clay = program(FRAG);
+          if (!clay) return false;
+          const present = program(PRESENT);
           gl.bindVertexArray(gl.createVertexArray());
-          const U = (n) => gl.getUniformLocation(prog, n);
-          gl.uniform1i(U('uHeight'), 0);
-          gl.uniform1i(U('uAlbedo'), 1);
-          gl.uniform1i(U('uGroup'), 2);
+
+          // Float accumulation buffer when available (smooth, no banding)
+          const floatOK = !!gl.getExtension('EXT_color_buffer_float') && !!present;
+          let accumTex = null, fbo = null;
 
           const textures = [0, 1, 2].map(() => gl.createTexture());
           function upload(unit, internal, format, type, w, h, data, filter) {
@@ -433,14 +515,15 @@
           }
 
           let W, H, S, w, h;
+          let useFloat = false;
 
           function build() {
             W = document.documentElement.clientWidth;
             canvas.style.width = canvas.style.height = '0px';
             H = Math.max(document.documentElement.scrollHeight, innerHeight);
             const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-            S = Math.min(devicePixelRatio || 1, 2);
-            S = Math.min(S, Math.sqrt(9e6 / (W * H)), maxTex / W, maxTex / H);
+            S = Math.min(devicePixelRatio || 1, 3);
+            S = Math.min(S, Math.sqrt(12e6 / (W * H)), maxTex / W, maxTex / H);
             w = Math.round(W * S);
             h = Math.round(H * S);
             canvas.width = w;
@@ -463,7 +546,14 @@
             const ox = scrollX, oy = scrollY;
             const centerOf = (el) => {
               const r = el.getBoundingClientRect();
-              return [(r.left + r.width / 2 + ox) * S, (r.top + r.height / 2 + oy) * S, r];
+              return [(r.left + r.width / 2 + ox) * S, (r.top + r.height / 2 + oy) * S];
+            };
+            const spread = (ctx, fill, strokeFn) => {
+              // colour bleeds a touch past the edge so no slab colour shows on the rim
+              ctx.strokeStyle = fill;
+              ctx.lineWidth = 3 * S;
+              ctx.lineJoin = 'round';
+              strokeFn();
             };
 
             // tiles: flattened slabs of white clay
@@ -477,41 +567,31 @@
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate((t.tilt * Math.PI) / 180);
-                ctx.beginPath();
                 roundRect(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.42);
                 ctx.fillStyle = fill;
                 ctx.fill();
-                if (ctx === alb) {
-                  ctx.strokeStyle = fill;
-                  ctx.lineWidth = 3 * S;
-                  ctx.stroke();
-                }
+                if (ctx === alb) spread(ctx, fill, () => ctx.stroke());
                 ctx.restore();
               }
             });
 
-            // letters: hand-rolled tubes of coloured clay
+            // letters: hand-rolled coils of coloured clay
             for (const L of letters) {
               const [cx, cy] = centerOf(L.el);
               const size = parseFloat(getComputedStyle(L.el).fontSize) * S;
-              const tileTilt = L.el.closest('.tile') ? tiles.find((t) => t.el === L.el.closest('.tile')).tilt : 0;
+              const onTile = tiles.find((t) => t.el.contains(L.el));
               const radius = Math.min(255, Math.round(size * 0.105));
               for (const [ctx, fill] of [[alb, L.color], [blob, `rgb(${radius},0,0)`]]) {
                 ctx.save();
                 ctx.translate(cx, cy + L.dy * size);
-                ctx.rotate(((L.rot + tileTilt) * Math.PI) / 180);
+                ctx.rotate(((L.rot + (onTile ? onTile.tilt : 0)) * Math.PI) / 180);
                 ctx.scale(L.scale, L.scale);
                 ctx.font = `800 ${size}px Sniglet`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = fill;
                 ctx.fillText(L.ch, 0, 0);
-                if (ctx === alb) {
-                  ctx.strokeStyle = fill;
-                  ctx.lineWidth = 3 * S;
-                  ctx.lineJoin = 'round';
-                  ctx.strokeText(L.ch, 0, 0);
-                }
+                if (ctx === alb) spread(ctx, fill, () => ctx.strokeText(L.ch, 0, 0));
                 ctx.restore();
               }
             }
@@ -527,15 +607,11 @@
                 ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
                 ctx.fillStyle = fill;
                 ctx.fill();
-                if (ctx === alb) {
-                  ctx.strokeStyle = fill;
-                  ctx.lineWidth = 3 * S;
-                  ctx.stroke();
-                }
+                if (ctx === alb) spread(ctx, fill, () => ctx.stroke());
               }
             }
 
-            // ---- height map ----
+            // ---- height map: exact distance transform, sub-pixel edges, pressed-coil profile ----
             const n = w * h;
             const A = alb.getImageData(0, 0, w, h).data;
             const B = blob.getImageData(0, 0, w, h).data;
@@ -547,45 +623,85 @@
             }
             const dBlob = distanceInside(blobMask, w, h);
             const dTile = distanceInside(tileMask, w, h);
+            // distance with sub-pixel accuracy from the anti-aliased coverage
+            const subpixel = (inside, d, alpha) => (inside ? d - 1 + alpha : alpha);
+            const profile = (d, R, p) => R * Math.pow(1 - Math.pow(1 - Math.min(d, R) / R, p), 1 / p);
             let height = new Float32Array(n);
             const group = new Uint8Array(n);
             const albedo = new Uint8Array(n * 4);
             for (let y = 0; y < h; y++) {
               const fy = (h - 1 - y) * w; // flip: GL textures start at the bottom
               for (let x = 0; x < w; x++) {
-                const i = y * w + x, j = fy + x;
+                const i = y * w + x, j = fy + x, k = i * 4;
                 let v = 0;
-                if (blobMask[i]) {
-                  const R = B[i * 4] || 1;
-                  const d = Math.min(dBlob[i], R) / R;
-                  v += R * Math.sqrt(1 - (1 - d) * (1 - d));
+                const ab = B[k + 3] / 255;
+                if (ab > 0.2) {
+                  const R = B[k] || 1;
+                  v += profile(Math.max(0, subpixel(blobMask[i], dBlob[i], ab)), R, 2.25);
                 }
-                if (tileMask[i]) {
-                  const Ht = T[i * 4 + 1], Rt = T[i * 4 + 2] || 1;
-                  const d = Math.min(dTile[i], Rt) / Rt;
-                  v += Ht * Math.sqrt(1 - (1 - d) * (1 - d));
-                  group[j] = T[i * 4];
+                const at = T[k + 3] / 255;
+                if (at > 0.2) {
+                  const Ht = T[k + 1], Rt = T[k + 2] || 1;
+                  v += (Ht / Rt) * profile(Math.max(0, subpixel(tileMask[i], dTile[i], at)), Rt, 2);
+                  if (tileMask[i]) group[j] = T[k];
                 }
                 height[j] = v;
-                albedo[j * 4] = A[i * 4];
-                albedo[j * 4 + 1] = A[i * 4 + 1];
-                albedo[j * 4 + 2] = A[i * 4 + 2];
-                albedo[j * 4 + 3] = A[i * 4 + 3];
+                albedo[j * 4] = A[k];
+                albedo[j * 4 + 1] = A[k + 1];
+                albedo[j * 4 + 2] = A[k + 2];
+                albedo[j * 4 + 3] = 255;
               }
             }
-            height = boxBlur(height, w, h, Math.max(1, Math.round(S)));
+            height = boxBlur(height, w, h, Math.max(1, Math.round(S * 0.75)));
 
             upload(0, gl.R16F, gl.RED, gl.FLOAT, w, h, height, gl.LINEAR);
             upload(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, w, h, albedo, gl.LINEAR);
             upload(2, gl.R8, gl.RED, gl.UNSIGNED_BYTE, w, h, group, gl.NEAREST);
-            gl.uniform2f(U('uRes'), w, h);
-            gl.uniform1f(U('uScale'), S);
-            draw();
+
+            // accumulation target
+            useFloat = false;
+            if (floatOK) {
+              if (!accumTex) accumTex = gl.createTexture();
+              gl.activeTexture(gl.TEXTURE3);
+              gl.bindTexture(gl.TEXTURE_2D, accumTex);
+              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+              gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+              if (!fbo) fbo = gl.createFramebuffer();
+              gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+              gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, accumTex, 0);
+              useFloat = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+              gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            }
+
+            gl.useProgram(clay.pr);
+            gl.uniform1i(clay.U('uHeight'), 0);
+            gl.uniform1i(clay.U('uAlbedo'), 1);
+            gl.uniform1i(clay.U('uGroup'), 2);
+            gl.uniform2f(clay.U('uRes'), w, h);
+            gl.uniform1f(clay.U('uScale'), S);
+            gl.uniform1i(clay.U('uDirect'), useFloat ? 0 : 1);
+            if (present) {
+              gl.useProgram(present.pr);
+              gl.uniform1i(present.U('uAccum'), 3);
+              gl.uniform2f(present.U('uRes'), w, h);
+            }
+            restart(null);
           }
 
+          // ---- progressive rendering: average many jittered passes ----
+          const halton = (i, b) => {
+            let f = 1, r = 0;
+            for (; i > 0; i = Math.floor(i / b)) {
+              f /= b;
+              r += f * (i % b);
+            }
+            return r;
+          };
           const puff = [1, 1, 1, 1], target = [1, 1, 1, 1];
-          function draw(region) {
-            gl.uniform4f(U('uPuff'), puff[0], puff[1], puff[2], puff[3]);
+          let pass = 0, region = null, loop = 0, started = 0;
+
+          function renderPass() {
             gl.viewport(0, 0, w, h);
             if (region) {
               gl.enable(gl.SCISSOR_TEST);
@@ -593,34 +709,70 @@
             } else {
               gl.disable(gl.SCISSOR_TEST);
             }
+            // one jittered sample, blended into the running average
+            gl.useProgram(clay.pr);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, useFloat ? fbo : null);
+            const k = pass + 1;
+            gl.uniform4f(clay.U('uPuff'), puff[0], puff[1], puff[2], puff[3]);
+            gl.uniform2f(clay.U('uJitter'), halton(k, 2) - 0.5, halton(k, 3) - 0.5);
+            const ang = 2 * Math.PI * halton(k, 5), rad = Math.sqrt(halton(k, 7));
+            gl.uniform2f(clay.U('uLightJ'), Math.cos(ang) * rad, Math.sin(ang) * rad);
+            gl.uniform1f(clay.U('uSeed'), k);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
+            gl.blendColor(0, 0, 0, 1 / k);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
+            gl.disable(gl.BLEND);
+            // show the average so far
+            if (useFloat) {
+              gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+              gl.useProgram(present.pr);
+              gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+          }
+
+          const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+          function step() {
+            loop = 0;
+            let moving = false;
+            for (let i = 0; i < 4; i++) {
+              const delta = target[i] - puff[i];
+              if (delta === 0) continue;
+              puff[i] = still || Math.abs(delta) < 0.003 ? target[i] : puff[i] + delta * 0.22;
+              moving = true;
+            }
+            if (moving) pass = 0; // the clay is moving: start the average again
+            renderPass();
+            pass++;
+            const budget = performance.now() - started < BUDGET_MS;
+            if (moving || (pass < SAMPLES && budget)) loop = requestAnimationFrame(step);
+          }
+          function restart(r) {
+            pass = 0;
+            region = r;
+            started = performance.now();
+            if (!loop) loop = requestAnimationFrame(step);
           }
 
           // Hover: the clay puffs up; pressing squishes it
-          const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-          let raf = 0;
-          function regionFor(i) {
-            const r = tiles[i].el.getBoundingClientRect();
-            const m = 90; // room for the shadow
-            const x = Math.max(0, Math.floor((r.left + scrollX - m) * S));
-            const top = (r.top + scrollY - m) * S;
-            const bottom = (r.bottom + scrollY + m) * S;
-            return [x, Math.max(0, Math.floor(h - bottom)), Math.ceil((r.width + 2 * m) * S), Math.ceil(bottom - top)];
-          }
-          function animate(i) {
-            cancelAnimationFrame(raf);
-            const tick = () => {
-              const delta = target[i] - puff[i];
-              puff[i] = still || Math.abs(delta) < 0.003 ? target[i] : puff[i] + delta * 0.22;
-              draw(regionFor(i));
-              if (puff[i] !== target[i]) raf = requestAnimationFrame(tick);
-            };
-            raf = requestAnimationFrame(tick);
+          function tilesRegion() {
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            for (const t of tiles) {
+              const r = t.el.getBoundingClientRect();
+              x0 = Math.min(x0, r.left + scrollX);
+              y0 = Math.min(y0, r.top + scrollY);
+              x1 = Math.max(x1, r.right + scrollX);
+              y1 = Math.max(y1, r.bottom + scrollY);
+            }
+            const m = 80; // room for shadows
+            const left = Math.max(0, Math.floor((x0 - m) * S));
+            const bottom = Math.max(0, Math.floor(h - (y1 + m) * S));
+            return [left, bottom, Math.ceil((x1 - x0 + 2 * m) * S), Math.ceil((y1 - y0 + 2 * m) * S)];
           }
           tiles.forEach((t, i) => {
             const set = (v) => () => {
               target[i] = v;
-              animate(i);
+              restart(tilesRegion());
             };
             t.el.addEventListener('pointerenter', set(1.35));
             t.el.addEventListener('pointerleave', set(1));
