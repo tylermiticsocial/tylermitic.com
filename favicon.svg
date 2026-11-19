@@ -1,12 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <style>
-    rect { fill: #1d1a16; }
-    text { fill: #f6f1e7; }
-    @media (prefers-color-scheme: dark) {
-      rect { fill: #f6f1e7; }
-      text { fill: #1d1a16; }
-    }
-  </style>
-  <rect width="64" height="64" rx="14"/>
-  <text x="32" y="43" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" font-style="italic" font-weight="600" letter-spacing="-1">tm</text>
+  <rect width="64" height="64" rx="16" fill="#efe8db"/>
+  <g stroke-linecap="round" fill="none">
+    <path d="M16 18.5 Q32 15.5 48 18.5" stroke="#9e2d25" stroke-width="13" transform="translate(1.5 2.5)" opacity=".35"/>
+    <path d="M32 20 Q31 34 32.5 49" stroke="#9e2d25" stroke-width="13" transform="translate(1.5 2.5)" opacity=".35"/>
+    <path d="M16 18.5 Q32 15.5 48 18.5" stroke="#df4339" stroke-width="12"/>
+    <path d="M32 20 Q31 34 32.5 49" stroke="#df4339" stroke-width="12"/>
+    <path d="M19 16.5 Q30 14.3 41 15.6" stroke="#f58a7f" stroke-width="3.5" opacity=".8"/>
+    <path d="M29.6 25 Q29.2 33 29.8 41" stroke="#f58a7f" stroke-width="3" opacity=".7"/>
+  </g>
 </svg>

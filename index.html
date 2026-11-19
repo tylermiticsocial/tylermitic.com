@@ -4,94 +4,845 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tyler Mitic</title>
-    <meta name="description" content="Tyler Mitic" />
+    <meta name="description" content="Tyler Mitic: always up to something." />
     <meta property="og:title" content="Tyler Mitic" />
     <meta property="og:url" content="https://tylermitic.com" />
+    <meta name="theme-color" content="#e9e1d3" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <style>
-      :root {
-        --bg: #f6f1e7;
-        --ink: #1d1a16;
-        --muted: #6b6357;
-        --accent: #b0421d;
-        color-scheme: light dark;
+      @font-face {
+        font-family: 'Sniglet';
+        src: url(fonts/sniglet-800.woff2) format('woff2');
+        font-weight: 800;
+        font-display: block;
       }
 
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #14120f;
-          --ink: #efe8da;
-          --muted: #9d9486;
-          --accent: #ee8b5f;
-        }
+      html {
+        background: #e9e1d3;
       }
 
       body {
+        position: relative;
         margin: 0;
         min-height: 100vh;
+        min-height: 100svh;
         display: grid;
         place-items: center;
-        padding: 2rem 1.25rem;
+        padding: 3rem 1.25rem;
         box-sizing: border-box;
-        background: var(--bg);
-        color: var(--ink);
-        font: 1.125rem/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+        color: #4a3b2e;
+        font-family: 'Sniglet', ui-rounded, system-ui, sans-serif;
+        font-weight: 800;
+        text-align: center;
       }
 
       main {
-        width: 100%;
-        max-width: 30rem;
+        max-width: 62rem;
       }
 
       h1 {
-        margin: 0 0 0.75rem;
-        font-family: ui-serif, 'New York', Georgia, serif;
-        font-size: clamp(2.5rem, 10vw, 3.5rem);
-        font-weight: 400;
-        line-height: 1.05;
-        letter-spacing: -0.02em;
+        margin: 0;
+        font-size: clamp(4.2rem, 21vw, 10rem);
+        font-weight: 800;
+        line-height: 1.08;
+        letter-spacing: 0.03em;
       }
 
-      p {
-        margin: 0 0 2rem;
-        color: var(--muted);
+      .tagline {
+        margin: 1.25rem 0 2.75rem;
+        font-size: clamp(1.6rem, 5.4vw, 2.6rem);
+        line-height: 1.35;
+        letter-spacing: 0.06em;
       }
 
-      ul {
+      .links {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem 1.5rem;
+        justify-content: center;
+        gap: 1.4rem 1.6rem;
         margin: 0;
         padding: 0;
         list-style: none;
       }
 
-      a {
-        color: var(--ink);
-        text-decoration-color: var(--accent);
-        text-decoration-thickness: 1px;
-        text-underline-offset: 0.25em;
+      /* Links are flattened pancakes of white clay */
+      .tile {
+        position: relative;
+        display: inline-block;
+        padding: 1.05rem 1.7rem 1.2rem;
+        font-size: clamp(1.45rem, 4.4vw, 1.9rem);
+        letter-spacing: 0.05em;
+        color: inherit;
+        text-decoration: none;
+        transform: var(--tilt, none);
       }
 
-      a:hover {
-        color: var(--accent);
+      .tile:focus-visible {
+        outline: 3px dashed #3a84d0;
+        outline-offset: 8px;
+        border-radius: 999px;
+      }
+
+      /* Each letter keeps its spot in the layout; the clay is drawn over it */
+      .word {
+        display: inline-block;
+        white-space: nowrap;
+      }
+
+      .letter {
+        position: relative;
+        display: inline-block;
+        line-height: 1;
+        color: transparent;
+      }
+
+      .sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      /* WebGL clay renderer */
+      #clay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      /* Fallback (no WebGL): SVG-filter clay */
+      .fallback .tile {
+        transition: transform 0.35s cubic-bezier(0.3, 1.7, 0.5, 1);
+      }
+
+      .fallback .tile:hover {
+        transform: var(--tilt, none) translateY(-4px) scale(1.05);
+      }
+
+      .fallback .letter svg,
+      .fallback .tile-bg,
+      .fallback .pebbles svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        pointer-events: none;
+      }
+
+      .fallback .pebbles,
+      .fallback .slab {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        overflow: hidden;
+      }
+
+      .fallback .slab {
+        position: fixed;
+      }
+
+      .fallback .tile > span {
+        position: relative;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fallback .tile {
+          transition: none;
+        }
       }
     </style>
   </head>
   <body>
+    <canvas id="clay" aria-hidden="true"></canvas>
+
     <main>
-      <h1>Tyler Mitic</h1>
+      <h1 data-clay>Tyler Mitic</h1>
 
       <!-- Change this line to say whatever you like. -->
-      <p>Welcome to my corner of the internet.</p>
+      <p class="tagline" data-clay>Always up to something.</p>
 
       <!-- Add or remove links here. -->
-      <ul>
-        <li><a href="https://tylerstandem.com">Tyler’s Tandem</a></li>
-        <li><a href="https://instagram.com/tylermitic">Instagram</a></li>
-        <li><a href="mailto:tyler@tylermitic.com">Email</a></li>
+      <ul class="links">
+        <li><a class="tile" href="https://tylerstandem.com"><span data-clay>Tyler’s Tandem</span></a></li>
+        <li><a class="tile" href="https://instagram.com/tylermitic"><span data-clay>Instagram</span></a></li>
+        <li><a class="tile" href="mailto:tyler@tylermitic.com"><span data-clay>Email</span></a></li>
       </ul>
     </main>
+
+    <script>
+      (() => {
+        // Plasticine rainbow: red, orange, yellow, green, blue, indigo, violet
+        const RAINBOW = ['#df4339', '#ef8a2a', '#f3c02c', '#53ab4c', '#3a84d0', '#4f55b6', '#9750b2'];
+        const TILE_CLAY = '#f7f2e9';
+        const SLAB_CLAY = '#ece4d7';
+        // A few stray balls of clay left on the slab: [x%, y%, diameter in px]
+        const PEBBLES = [[7, 13, 30], [92, 10, 20], [96, 47, 34], [4, 56, 18], [10, 88, 26], [89, 87, 28], [60, 95, 16], [33, 5, 14]];
+
+        // Seeded random so the handmade wobble is the same on every visit
+        let seed = 7;
+        const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+        const between = (a, b) => a + (b - a) * rand();
+
+        // ---------- Split text into individually sculpted letters ----------
+        const letters = [];
+        let colorIndex = 0;
+        document.querySelectorAll('[data-clay]').forEach((el) => {
+          const text = el.textContent.trim();
+          el.textContent = '';
+          const sr = document.createElement('span');
+          sr.className = 'sr';
+          sr.textContent = text;
+          const visual = document.createElement('span');
+          visual.setAttribute('aria-hidden', 'true');
+          text.split(' ').forEach((word, i) => {
+            if (i) visual.append(' ');
+            const w = document.createElement('span');
+            w.className = 'word';
+            for (const ch of word) {
+              const span = document.createElement('span');
+              span.className = 'letter';
+              span.textContent = ch;
+              w.append(span);
+              letters.push({
+                el: span,
+                ch,
+                color: RAINBOW[colorIndex++ % RAINBOW.length],
+                rot: between(-7, 7),
+                dy: between(-0.05, 0.05),
+                scale: between(0.94, 1.05),
+                variant: Math.floor(rand() * 4),
+              });
+            }
+            visual.append(w);
+          });
+          el.append(sr, visual);
+        });
+
+        const tiles = [...document.querySelectorAll('.tile')].map((el) => {
+          const tilt = between(-3, 3);
+          el.style.setProperty('--tilt', `rotate(${tilt.toFixed(1)}deg)`);
+          return { el, tilt };
+        });
+        const pebbleShapes = PEBBLES.map(([x, y, d], i) => ({
+          x, y, d,
+          sx: between(0.95, 1.15),
+          sy: between(0.85, 1),
+          color: RAINBOW[(i * 3) % RAINBOW.length],
+        }));
+
+        const fontsReady = document.fonts ? document.fonts.load('800 100px Sniglet').then(() => document.fonts.ready) : Promise.resolve();
+        fontsReady.then(() => {
+          if (!startClayRenderer()) startSvgFallback();
+        });
+
+        // =====================================================================
+        // WebGL clay renderer
+        // Lays the page out in HTML, paints every letter, tile and pebble into
+        // height + color maps, then shades them as real matte clay on the GPU:
+        // rolled-tube profiles, lumpy hand-made edges, fingerprint dents,
+        // colour mottling, ray-marched soft shadows and ambient occlusion.
+        // =====================================================================
+        function startClayRenderer() {
+          const canvas = document.getElementById('clay');
+          const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true });
+          if (!gl) return false;
+
+          const VERT = `#version 300 es
+          void main() {
+            vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+            gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+          }`;
+
+          const FRAG = `#version 300 es
+          precision highp float;
+          uniform sampler2D uHeight;  // object height (texture px), y-up
+          uniform sampler2D uAlbedo;  // sRGB colour
+          uniform sampler2D uGroup;   // tile group id (0 = none)
+          uniform vec2 uRes;          // texture / canvas size in px
+          uniform float uScale;       // device px per CSS px
+          uniform vec4 uPuff;         // per-tile hover puff (1 = resting)
+          out vec4 fragColor;
+
+          const vec3 LIGHT = vec3(-0.5306, 0.5984, 0.6003);   // normalized: from the top-left
+
+          float hash(vec2 p) {
+            vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+            p3 += dot(p3, p3.yzx + 33.33);
+            return fract((p3.x + p3.y) * p3.z);
+          }
+          float noise(vec2 p) {
+            vec2 i = floor(p), f = fract(p);
+            vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+            return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+          }
+          float fbm(vec2 p, int octaves) {
+            float s = 0.0, a = 0.5;
+            for (int i = 0; i < 6; i++) {
+              if (i >= octaves) break;
+              s += a * noise(p);
+              p = mat2(1.6, 1.2, -1.2, 1.6) * p + 3.1;
+              a *= 0.5;
+            }
+            return s;
+          }
+
+          float puffAt(vec2 uv) {
+            int g = int(texture(uGroup, uv).r * 255.0 + 0.5);
+            return g == 1 ? uPuff.x : g == 2 ? uPuff.y : g == 3 ? uPuff.z : g == 4 ? uPuff.w : 1.0;
+          }
+          // Height of the sculpted pieces, in CSS px
+          float objH(vec2 uv) {
+            return texture(uHeight, uv).r / uScale * puffAt(uv);
+          }
+
+          // Fingerprints: patches of concentric ridges left by fingertips
+          float fingerprints(vec2 q) {
+            vec2 cell = floor(q / 46.0);
+            float ridges = 0.0;
+            for (int j = -1; j <= 1; j++)
+            for (int i = -1; i <= 1; i++) {
+              vec2 c = cell + vec2(i, j);
+              if (hash(c * 1.7) > 0.45) continue;
+              vec2 center = (c + vec2(hash(c), hash(c + 7.1))) * 46.0;
+              vec2 d = q - center;
+              d = mat2(1.0, 0.0, 0.0, 0.7 + 0.5 * hash(c + 3.3)) * d;   // oval prints
+              float r = length(d);
+              float fade = smoothstep(26.0, 8.0, r);
+              ridges += sin(r * 1.9 + noise(q * 0.15) * 5.0 + noise(q * 0.5)) * fade * (0.6 + 0.4 * noise(q * 0.3));
+            }
+            return ridges;
+          }
+
+          // Full surface height (CSS px) at CSS position q / texture uv
+          float surface(vec2 q, vec2 uv, out float obj) {
+            obj = objH(uv);
+            float cover = smoothstep(0.2, 2.5, obj);
+            // the slab: broad thumb-pressed lumps, trowel smears, a little grit
+            float slab = fbm(q * 0.0045, 4) * 7.0
+                       + abs(fbm(q * vec2(0.011, 0.02) + 7.0, 3) - 0.5) * 3.2
+                       + fbm(q * 0.3, 2) * 0.3;
+            // the clay pieces: soft lumps, small dents and fingerprints
+            float detail = (fbm(q * 0.06 + 11.0, 4) - 0.5) * 1.8
+                         + (fbm(q * 0.25 + 5.0, 2) - 0.5) * 0.35
+                         + fingerprints(q) * 0.07;
+            return slab + obj + detail * cover;
+          }
+
+          vec3 toLinear(vec3 c) { return pow(c, vec3(2.2)); }
+
+          void main() {
+            vec2 px = gl_FragCoord.xy;
+            vec2 q = px / uScale;
+
+            // hand-built wobble: everything is pushed around a little
+            vec2 warp = (vec2(fbm(q * 0.028, 3), fbm(q * 0.028 + 19.3, 3)) - 0.5) * 4.5;
+            vec2 uv = (px + warp * uScale) / uRes;
+
+            float dq = 1.0 / uScale;
+            vec2 tx = vec2(1.0 / uRes.x, 0.0), ty = vec2(0.0, 1.0 / uRes.y);
+            float o0, o1;
+            float h0 = surface(q, uv, o0);
+            float hx1 = surface(q + vec2(dq, 0.0), uv + tx, o1);
+            float hx0 = surface(q - vec2(dq, 0.0), uv - tx, o1);
+            float hy1 = surface(q + vec2(0.0, dq), uv + ty, o1);
+            float hy0 = surface(q - vec2(0.0, dq), uv - ty, o1);
+            vec3 N = normalize(vec3((hx0 - hx1) / (2.0 * dq), (hy0 - hy1) / (2.0 * dq), 1.0));
+
+            // soft shadows: march across the height map toward the light
+            vec2 ld = normalize(LIGHT.xy);
+            float slope = LIGHT.z / length(LIGHT.xy);
+            float shadow = 1.0;
+            for (int i = 1; i <= 56; i++) {
+              float t = float(i) * 1.2;
+              float hs = objH(uv + ld * t * uScale / uRes);
+              float ray = o0 + t * slope;
+              shadow = min(shadow, clamp(0.5 + (ray - hs) / (0.4 * t + 0.6), 0.0, 1.0));
+            }
+            shadow = shadow * shadow * (3.0 - 2.0 * shadow);
+
+            // ambient occlusion: how much clay crowds around this point
+            float ao = 0.0;
+            for (int i = 0; i < 24; i++) {
+              float a = float(i) * 2.39996;
+              float r = 1.5 + float(i) * 1.1;
+              float hs = objH(uv + vec2(cos(a), sin(a)) * r * uScale / uRes);
+              ao += clamp((hs - o0) / r, 0.0, 1.0) * (1.0 - float(i) / 28.0);
+            }
+            ao = clamp(1.0 - ao * 0.11, 0.3, 1.0);
+
+            // colour: clay is never perfectly even
+            vec3 base = texture(uAlbedo, uv).rgb;
+            vec3 albedo = toLinear(base);
+            albedo *= 0.92 + 0.13 * fbm(q * 0.03 + 3.0, 3);
+            albedo *= 0.97 + 0.06 * noise(q * 0.9);
+
+            // matte clay lighting: wrapped diffuse, sky fill, no gloss
+            float ndl = dot(N, LIGHT);
+            float diffuse = clamp((ndl + 0.25) / 1.25, 0.0, 1.0);
+            vec3 sun = vec3(1.0, 0.95, 0.88) * 0.95;
+            vec3 sky = mix(vec3(0.20, 0.19, 0.21), vec3(0.40, 0.41, 0.45), N.z * 0.5 + 0.5);
+            vec3 col = albedo * (sun * diffuse * shadow + sky * ao);
+            col += albedo * albedo * 0.10 * (1.0 - diffuse) * ao;    // light soaking into the clay
+            col += vec3(0.008) * pow(max(dot(N, normalize(LIGHT + vec3(0, 0, 1))), 0.0), 4.0) * shadow;
+
+            col = col / (1.0 + col * 0.12);
+            fragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
+          }`;
+
+          function compile(type, src) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src);
+            gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+              console.warn(gl.getShaderInfoLog(s));
+              return null;
+            }
+            return s;
+          }
+          const vs = compile(gl.VERTEX_SHADER, VERT);
+          const fs = compile(gl.FRAGMENT_SHADER, FRAG);
+          if (!vs || !fs) return false;
+          const prog = gl.createProgram();
+          gl.attachShader(prog, vs);
+          gl.attachShader(prog, fs);
+          gl.linkProgram(prog);
+          if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+          gl.useProgram(prog);
+          gl.bindVertexArray(gl.createVertexArray());
+          const U = (n) => gl.getUniformLocation(prog, n);
+          gl.uniform1i(U('uHeight'), 0);
+          gl.uniform1i(U('uAlbedo'), 1);
+          gl.uniform1i(U('uGroup'), 2);
+
+          const textures = [0, 1, 2].map(() => gl.createTexture());
+          function upload(unit, internal, format, type, w, h, data, filter) {
+            gl.activeTexture(gl.TEXTURE0 + unit);
+            gl.bindTexture(gl.TEXTURE_2D, textures[unit]);
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+            gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, format, type, data);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          }
+
+          let W, H, S, w, h;
+
+          function build() {
+            W = document.documentElement.clientWidth;
+            canvas.style.width = canvas.style.height = '0px';
+            H = Math.max(document.documentElement.scrollHeight, innerHeight);
+            const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            S = Math.min(devicePixelRatio || 1, 2);
+            S = Math.min(S, Math.sqrt(9e6 / (W * H)), maxTex / W, maxTex / H);
+            w = Math.round(W * S);
+            h = Math.round(H * S);
+            canvas.width = w;
+            canvas.height = h;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+
+            const mk = () => {
+              const c = document.createElement('canvas');
+              c.width = w;
+              c.height = h;
+              return c.getContext('2d', { willReadFrequently: true });
+            };
+            const alb = mk(); // colours, painted onto the bare slab colour
+            alb.fillStyle = SLAB_CLAY;
+            alb.fillRect(0, 0, w, h);
+            const blob = mk(); // letters + pebbles: R = tube radius
+            const tile = mk(); // tiles: R = group id, G = height, B = edge radius
+
+            const ox = scrollX, oy = scrollY;
+            const centerOf = (el) => {
+              const r = el.getBoundingClientRect();
+              return [(r.left + r.width / 2 + ox) * S, (r.top + r.height / 2 + oy) * S, r];
+            };
+
+            // tiles: flattened slabs of white clay
+            tiles.forEach((t, i) => {
+              const el = t.el;
+              const bw = el.offsetWidth * S, bh = el.offsetHeight * S;
+              const [cx, cy] = centerOf(el);
+              const height = Math.min(255, Math.round(el.offsetHeight * 0.16 * S));
+              const edge = Math.min(255, Math.round(height * 1.7));
+              for (const [ctx, fill] of [[alb, TILE_CLAY], [tile, `rgb(${i + 1},${height},${edge})`]]) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate((t.tilt * Math.PI) / 180);
+                ctx.beginPath();
+                roundRect(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.42);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                if (ctx === alb) {
+                  ctx.strokeStyle = fill;
+                  ctx.lineWidth = 3 * S;
+                  ctx.stroke();
+                }
+                ctx.restore();
+              }
+            });
+
+            // letters: hand-rolled tubes of coloured clay
+            for (const L of letters) {
+              const [cx, cy] = centerOf(L.el);
+              const size = parseFloat(getComputedStyle(L.el).fontSize) * S;
+              const tileTilt = L.el.closest('.tile') ? tiles.find((t) => t.el === L.el.closest('.tile')).tilt : 0;
+              const radius = Math.min(255, Math.round(size * 0.105));
+              for (const [ctx, fill] of [[alb, L.color], [blob, `rgb(${radius},0,0)`]]) {
+                ctx.save();
+                ctx.translate(cx, cy + L.dy * size);
+                ctx.rotate(((L.rot + tileTilt) * Math.PI) / 180);
+                ctx.scale(L.scale, L.scale);
+                ctx.font = `800 ${size}px Sniglet`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill;
+                ctx.fillText(L.ch, 0, 0);
+                if (ctx === alb) {
+                  ctx.strokeStyle = fill;
+                  ctx.lineWidth = 3 * S;
+                  ctx.lineJoin = 'round';
+                  ctx.strokeText(L.ch, 0, 0);
+                }
+                ctx.restore();
+              }
+            }
+
+            // pebbles: stray balls of clay (kept clear of the text on phones)
+            const narrow = W < 640;
+            for (const p of pebbleShapes) {
+              if (narrow && p.y > 20 && p.y < 80) continue;
+              const rx = (p.d / 2) * p.sx * S, ry = (p.d / 2) * p.sy * S;
+              const x = (p.x / 100) * W * S, y = (p.y / 100) * H * S;
+              for (const [ctx, fill] of [[alb, p.color], [blob, `rgb(${Math.min(255, Math.round(Math.max(rx, ry)))},0,0)`]]) {
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                if (ctx === alb) {
+                  ctx.strokeStyle = fill;
+                  ctx.lineWidth = 3 * S;
+                  ctx.stroke();
+                }
+              }
+            }
+
+            // ---- height map ----
+            const n = w * h;
+            const A = alb.getImageData(0, 0, w, h).data;
+            const B = blob.getImageData(0, 0, w, h).data;
+            const T = tile.getImageData(0, 0, w, h).data;
+            const blobMask = new Uint8Array(n), tileMask = new Uint8Array(n);
+            for (let i = 0; i < n; i++) {
+              blobMask[i] = B[i * 4 + 3] > 127 ? 1 : 0;
+              tileMask[i] = T[i * 4 + 3] > 127 ? 1 : 0;
+            }
+            const dBlob = distanceInside(blobMask, w, h);
+            const dTile = distanceInside(tileMask, w, h);
+            let height = new Float32Array(n);
+            const group = new Uint8Array(n);
+            const albedo = new Uint8Array(n * 4);
+            for (let y = 0; y < h; y++) {
+              const fy = (h - 1 - y) * w; // flip: GL textures start at the bottom
+              for (let x = 0; x < w; x++) {
+                const i = y * w + x, j = fy + x;
+                let v = 0;
+                if (blobMask[i]) {
+                  const R = B[i * 4] || 1;
+                  const d = Math.min(dBlob[i], R) / R;
+                  v += R * Math.sqrt(1 - (1 - d) * (1 - d));
+                }
+                if (tileMask[i]) {
+                  const Ht = T[i * 4 + 1], Rt = T[i * 4 + 2] || 1;
+                  const d = Math.min(dTile[i], Rt) / Rt;
+                  v += Ht * Math.sqrt(1 - (1 - d) * (1 - d));
+                  group[j] = T[i * 4];
+                }
+                height[j] = v;
+                albedo[j * 4] = A[i * 4];
+                albedo[j * 4 + 1] = A[i * 4 + 1];
+                albedo[j * 4 + 2] = A[i * 4 + 2];
+                albedo[j * 4 + 3] = A[i * 4 + 3];
+              }
+            }
+            height = boxBlur(height, w, h, Math.max(1, Math.round(S)));
+
+            upload(0, gl.R16F, gl.RED, gl.FLOAT, w, h, height, gl.LINEAR);
+            upload(1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, w, h, albedo, gl.LINEAR);
+            upload(2, gl.R8, gl.RED, gl.UNSIGNED_BYTE, w, h, group, gl.NEAREST);
+            gl.uniform2f(U('uRes'), w, h);
+            gl.uniform1f(U('uScale'), S);
+            draw();
+          }
+
+          const puff = [1, 1, 1, 1], target = [1, 1, 1, 1];
+          function draw(region) {
+            gl.uniform4f(U('uPuff'), puff[0], puff[1], puff[2], puff[3]);
+            gl.viewport(0, 0, w, h);
+            if (region) {
+              gl.enable(gl.SCISSOR_TEST);
+              gl.scissor(region[0], region[1], region[2], region[3]);
+            } else {
+              gl.disable(gl.SCISSOR_TEST);
+            }
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+          }
+
+          // Hover: the clay puffs up; pressing squishes it
+          const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+          let raf = 0;
+          function regionFor(i) {
+            const r = tiles[i].el.getBoundingClientRect();
+            const m = 90; // room for the shadow
+            const x = Math.max(0, Math.floor((r.left + scrollX - m) * S));
+            const top = (r.top + scrollY - m) * S;
+            const bottom = (r.bottom + scrollY + m) * S;
+            return [x, Math.max(0, Math.floor(h - bottom)), Math.ceil((r.width + 2 * m) * S), Math.ceil(bottom - top)];
+          }
+          function animate(i) {
+            cancelAnimationFrame(raf);
+            const tick = () => {
+              const delta = target[i] - puff[i];
+              puff[i] = still || Math.abs(delta) < 0.003 ? target[i] : puff[i] + delta * 0.22;
+              draw(regionFor(i));
+              if (puff[i] !== target[i]) raf = requestAnimationFrame(tick);
+            };
+            raf = requestAnimationFrame(tick);
+          }
+          tiles.forEach((t, i) => {
+            const set = (v) => () => {
+              target[i] = v;
+              animate(i);
+            };
+            t.el.addEventListener('pointerenter', set(1.35));
+            t.el.addEventListener('pointerleave', set(1));
+            t.el.addEventListener('pointerdown', set(0.7));
+            t.el.addEventListener('pointerup', set(1.35));
+            t.el.addEventListener('focus', set(1.35));
+            t.el.addEventListener('blur', set(1));
+          });
+
+          let resizeTimer, lastWidth = innerWidth;
+          addEventListener('resize', () => {
+            if (innerWidth === lastWidth) return; // ignore mobile toolbar show/hide
+            lastWidth = innerWidth;
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(build, 200);
+          });
+
+          build();
+          return true;
+        }
+
+        // Exact distance from each inside pixel to the nearest outside pixel
+        // (Felzenszwalb & Huttenlocher squared Euclidean distance transform)
+        function distanceInside(mask, w, h) {
+          const INF = 1e20;
+          const grid = new Float64Array(w * h);
+          for (let i = 0; i < w * h; i++) grid[i] = mask[i] ? INF : 0;
+          const m = Math.max(w, h);
+          const f = new Float64Array(m), d = new Float64Array(m), z = new Float64Array(m + 1);
+          const v = new Int32Array(m);
+          const pass = (n) => {
+            let k = 0;
+            v[0] = 0;
+            z[0] = -INF;
+            z[1] = INF;
+            for (let q = 1; q < n; q++) {
+              let s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+              while (s <= z[k]) {
+                k--;
+                s = (f[q] + q * q - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+              }
+              k++;
+              v[k] = q;
+              z[k] = s;
+              z[k + 1] = INF;
+            }
+            k = 0;
+            for (let q = 0; q < n; q++) {
+              while (z[k + 1] < q) k++;
+              d[q] = (q - v[k]) * (q - v[k]) + f[v[k]];
+            }
+          };
+          for (let x = 0; x < w; x++) {
+            for (let y = 0; y < h; y++) f[y] = grid[y * w + x];
+            pass(h);
+            for (let y = 0; y < h; y++) grid[y * w + x] = d[y];
+          }
+          const out = new Float32Array(w * h);
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) f[x] = grid[y * w + x];
+            pass(w);
+            for (let x = 0; x < w; x++) out[y * w + x] = Math.sqrt(d[x]);
+          }
+          return out;
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        }
+
+        function boxBlur(src, w, h, r) {
+          const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+          const k = 2 * r + 1;
+          for (let y = 0; y < h; y++) {
+            let acc = 0;
+            for (let x = -r; x <= r; x++) acc += src[y * w + Math.min(w - 1, Math.max(0, x))];
+            for (let x = 0; x < w; x++) {
+              tmp[y * w + x] = acc / k;
+              acc += src[y * w + Math.min(w - 1, x + r + 1)] - src[y * w + Math.max(0, x - r)];
+            }
+          }
+          for (let x = 0; x < w; x++) {
+            let acc = 0;
+            for (let y = -r; y <= r; y++) acc += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+            for (let y = 0; y < h; y++) {
+              out[y * w + x] = acc / k;
+              acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+            }
+          }
+          return out;
+        }
+
+        // =====================================================================
+        // Fallback for browsers without WebGL 2: SVG-filter clay
+        // =====================================================================
+        function startSvgFallback() {
+          const NS = 'http://www.w3.org/2000/svg';
+          document.documentElement.classList.add('fallback');
+          document.getElementById('clay').remove();
+
+          function clayFilter(id, size, variant, look) {
+            const f = (n) => n.toFixed(4);
+            const blur = size * look.puff;
+            const lift = blur * look.depth;
+            const grainFreq = Math.min(Math.max(look.grainSize / size, 0.07), 0.3);
+            const s = 3 + variant * 17;
+            return `
+            <filter id="${id}" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="${f(look.lumpFreq / size)}" numOctaves="2" seed="${s}" result="lumpNoise"/>
+              <feDisplacementMap in="SourceGraphic" in2="lumpNoise" scale="${f(size * look.lump)}" xChannelSelector="R" yChannelSelector="G" result="shape"/>
+              <feGaussianBlur in="shape" stdDeviation="${f(blur)}" result="soft"/>
+              <feTurbulence type="fractalNoise" baseFrequency="${f(grainFreq)}" numOctaves="2" seed="${s + 5}" result="grain"/>
+              <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="grainAlpha"/>
+              <feComposite in="soft" in2="grainAlpha" operator="arithmetic" k2="1" k3="${f(look.grain)}" k4="${f(-look.grain / 2)}" result="height"/>
+              <feDiffuseLighting in="height" surfaceScale="${f(lift)}" diffuseConstant="1.2" lighting-color="#fff" result="diffuse">
+                <feDistantLight azimuth="235" elevation="52"/>
+              </feDiffuseLighting>
+              <feBlend in="diffuse" in2="shape" mode="multiply" result="lit"/>
+              <feComposite in="lit" in2="shape" operator="in" result="body"/>
+              <feGaussianBlur in="shape" stdDeviation="${f(size * look.shadowBlur)}" result="shadowBlur"/>
+              <feOffset in="shadowBlur" dx="${f(size * 0.02)}" dy="${f(size * look.shadowDrop)}" result="shadowOffset"/>
+              <feFlood flood-color="#3a2615" flood-opacity="0.38"/>
+              <feComposite in2="shadowOffset" operator="in" result="shadow"/>
+              <feMerge><feMergeNode in="shadow"/><feMergeNode in="body"/></feMerge>
+            </filter>`;
+          }
+          const LOOKS = {
+            letter: { lumpFreq: 2.2, lump: 0.04, puff: 0.05, depth: 1.7, grainSize: 13, grain: 0.05, shadowBlur: 0.03, shadowDrop: 0.045 },
+            pebble: { lumpFreq: 1.4, lump: 0.14, puff: 0.2, depth: 1.5, grainSize: 13, grain: 0.05, shadowBlur: 0.08, shadowDrop: 0.1 },
+            tile: { lumpFreq: 1.8, lump: 0.06, puff: 0.1, depth: 1.2, grainSize: 10, grain: 0.06, shadowBlur: 0.07, shadowDrop: 0.08 },
+          };
+
+          const slab = document.createElement('div');
+          slab.className = 'slab';
+          slab.innerHTML = `<svg aria-hidden="true" width="100%" height="100%">
+            <filter id="slab-texture" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.004" numOctaves="4" seed="4" result="lumps"/>
+              <feTurbulence type="turbulence" baseFrequency="0.016 0.028" numOctaves="2" seed="12" result="smears"/>
+              <feComposite in="lumps" in2="smears" operator="arithmetic" k2="1" k3="0.12" result="height"/>
+              <feDiffuseLighting in="height" surfaceScale="8" diffuseConstant="1.2" lighting-color="#fff" result="light">
+                <feDistantLight azimuth="235" elevation="60"/>
+              </feDiffuseLighting>
+              <feBlend in="light" in2="SourceGraphic" mode="multiply"/>
+            </filter>
+            <rect width="100%" height="100%" fill="#efe8db" filter="url(#slab-texture)"/>
+          </svg>`;
+          const defsHost = document.createElement('div');
+          defsHost.innerHTML = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs></defs></svg>';
+          document.body.prepend(slab, defsHost);
+          const defs = defsHost.querySelector('defs');
+
+          function buildFilters() {
+            let out = '';
+            const sizes = new Set(letters.map((L) => parseFloat(getComputedStyle(L.el).fontSize)));
+            for (const size of sizes) for (let v = 0; v < 4; v++) out += clayFilter(`clay-${Math.round(size)}-${v}`, size, v, LOOKS.letter);
+            for (let v = 0; v < 4; v++) out += clayFilter(`clay-pebble-${v}`, 30, v, LOOKS.pebble);
+            for (let v = 0; v < 4; v++) out += clayFilter(`clay-tile-${v}`, tiles[0].el.offsetHeight, v, LOOKS.tile);
+            defs.innerHTML = out;
+            for (const L of letters) {
+              const size = Math.round(parseFloat(getComputedStyle(L.el).fontSize));
+              L.text.setAttribute('filter', `url(#clay-${size}-${L.variant})`);
+            }
+          }
+
+          for (const L of letters) {
+            L.el.style.transform = `translateY(${L.dy.toFixed(3)}em) rotate(${L.rot.toFixed(1)}deg) scale(${L.scale.toFixed(3)})`;
+            const svg = document.createElementNS(NS, 'svg');
+            const t = document.createElementNS(NS, 'text');
+            t.setAttribute('x', '50%');
+            t.setAttribute('y', '50%');
+            t.setAttribute('text-anchor', 'middle');
+            t.setAttribute('dominant-baseline', 'central');
+            t.setAttribute('fill', L.color);
+            t.textContent = L.ch;
+            svg.append(t);
+            L.el.append(svg);
+            L.text = t;
+          }
+          tiles.forEach((t, i) => {
+            const svg = document.createElementNS(NS, 'svg');
+            svg.setAttribute('class', 'tile-bg');
+            const r = document.createElementNS(NS, 'rect');
+            r.setAttribute('width', '100%');
+            r.setAttribute('height', '100%');
+            r.setAttribute('rx', String(Math.round(t.el.offsetHeight * 0.42)));
+            r.setAttribute('fill', TILE_CLAY);
+            r.setAttribute('filter', `url(#clay-tile-${i % 4})`);
+            svg.append(r);
+            t.el.prepend(svg);
+          });
+          const pebbles = document.createElement('div');
+          pebbles.className = 'pebbles';
+          const layer = document.createElementNS(NS, 'svg');
+          const narrow = innerWidth < 640;
+          pebbleShapes.forEach((p, i) => {
+            if (narrow && p.y > 20 && p.y < 80) return;
+            const c = document.createElementNS(NS, 'ellipse');
+            c.setAttribute('cx', `${p.x}%`);
+            c.setAttribute('cy', `${p.y}%`);
+            c.setAttribute('rx', (p.d / 2) * p.sx);
+            c.setAttribute('ry', (p.d / 2) * p.sy);
+            c.setAttribute('fill', p.color);
+            c.setAttribute('filter', `url(#clay-pebble-${i % 4})`);
+            layer.append(c);
+          });
+          pebbles.append(layer);
+          slab.after(pebbles);
+
+          buildFilters();
+          let timer;
+          addEventListener('resize', () => {
+            clearTimeout(timer);
+            timer = setTimeout(buildFilters, 150);
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
