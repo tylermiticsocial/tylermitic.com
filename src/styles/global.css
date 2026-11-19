@@ -1,0 +1,290 @@
+/* ---------- Tokens ---------- */
+:root {
+  --paper: #f6f1e7;
+  --paper-2: #eee6d6;
+  --ink: #1d1a16;
+  --ink-2: #585045;
+  --ink-3: #857b6c;
+  --rule: #ddd2bf;
+  --accent: #b0421d;
+  --accent-soft: #b0421d1f;
+  --code-bg: #ece3d1;
+
+  --font-serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --measure: 46rem;
+  --gutter: clamp(1.25rem, 4vw, 2rem);
+  --label-col: 9rem;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14120f;
+    --paper-2: #1d1a16;
+    --ink: #efe8da;
+    --ink-2: #b6ad9e;
+    --ink-3: #7f776a;
+    --rule: #2f2a23;
+    --accent: #ee8b5f;
+    --accent-soft: #ee8b5f24;
+    --code-bg: #1d1a16;
+  }
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-serif);
+  font-weight: 450;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--gutter);
+  top: -3rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* ---------- Layout ---------- */
+.wrap {
+  width: 100%;
+  max-width: calc(var(--measure) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+main {
+  padding-block: clamp(3rem, 9vw, 6rem) clamp(4rem, 10vw, 7rem);
+}
+
+/* Label-in-the-margin sections on the home page */
+.section {
+  display: grid;
+  gap: 0.75rem;
+  padding-block: 2.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.section-label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 550;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 0.3rem;
+}
+
+@media (min-width: 720px) {
+  .section {
+    grid-template-columns: var(--label-col) 1fr;
+    gap: 2rem;
+  }
+}
+
+.stack > * + * {
+  margin-top: 1rem;
+}
+
+.muted {
+  color: var(--ink-2);
+}
+
+/* ---------- Prose (blog posts) ---------- */
+.prose {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.prose > * + * {
+  margin-top: 1.25em;
+}
+
+.prose h2 {
+  font-size: 1.6rem;
+  margin-top: 2.25em;
+}
+
+.prose h3 {
+  font-size: 1.3rem;
+  margin-top: 2em;
+}
+
+.prose h2 + *,
+.prose h3 + * {
+  margin-top: 0.75em;
+}
+
+.prose a {
+  text-decoration-color: var(--accent);
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.25em;
+}
+
+.prose li + li {
+  margin-top: 0.35em;
+}
+
+.prose li::marker {
+  color: var(--ink-3);
+}
+
+.prose blockquote {
+  margin-inline: 0;
+  padding-left: 1.25em;
+  border-left: 2px solid var(--accent);
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin-block: 2.5em;
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+.prose :not(pre) > code {
+  background: var(--code-bg);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+
+.prose pre {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+}
+
+.prose pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.prose img {
+  border-radius: 8px;
+}
+
+/* Shiki dual themes: follow the system color scheme */
+.astro-code {
+  background-color: var(--code-bg) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .astro-code,
+  .astro-code span {
+    color: var(--shiki-dark) !important;
+    font-style: var(--shiki-dark-font-style) !important;
+    font-weight: var(--shiki-dark-font-weight) !important;
+    text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

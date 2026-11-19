@@ -1,0 +1,314 @@
+---
+import Base from '../layouts/Base.astro';
+import PostList from '../components/PostList.astro';
+import { SITE } from '../site';
+import { getPosts } from '../lib/posts';
+
+const posts = (await getPosts()).slice(0, 5);
+const links = SITE.links.filter((l) => l.href);
+
+// "*word*" in the greeting becomes an italic accent word.
+const greeting = SITE.greeting.split(/(\*[^*]+\*)/).filter(Boolean);
+---
+
+<Base>
+  <section class="hero" aria-labelledby="greeting">
+    <h1 id="greeting">
+      {greeting.map((part) => (part.startsWith('*') ? <em>{part.slice(1, -1)}</em> : part))}
+    </h1>
+    <p class="tagline">{SITE.tagline}</p>
+    {
+      SITE.now && (
+        <p class="now">
+          <span class="dot" aria-hidden="true" />
+          <span class="now-label">Now</span>
+          <span>{SITE.now}</span>
+        </p>
+      )
+    }
+  </section>
+
+  <section class="section" id="about" aria-labelledby="about-label">
+    <h2 class="section-label" id="about-label">About</h2>
+    <div class="stack about">
+      {SITE.about.map((p) => <p>{p}</p>)}
+    </div>
+  </section>
+
+  <section class="section" id="projects" aria-labelledby="projects-label">
+    <h2 class="section-label" id="projects-label">Projects</h2>
+    <ul class="projects">
+      {
+        SITE.projects.map((project) => {
+          const Tag = project.href ? 'a' : 'div';
+          return (
+            <li>
+              <Tag class="project" href={project.href}>
+                <span class="project-head">
+                  <span class="project-name">
+                    {project.name}
+                    {project.href && (
+                      <span class="arrow" aria-hidden="true">
+                        ↗
+                      </span>
+                    )}
+                  </span>
+                  {project.year && <span class="project-year">{project.year}</span>}
+                </span>
+                <span class="project-desc">{project.description}</span>
+              </Tag>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </section>
+
+  <section class="section" id="writing" aria-labelledby="writing-label">
+    <h2 class="section-label" id="writing-label">Writing</h2>
+    <div>
+      <PostList posts={posts} />
+      <p class="all"><a href="/writing/">All writing →</a></p>
+    </div>
+  </section>
+
+  <section class="section" id="contact" aria-labelledby="contact-label">
+    <h2 class="section-label" id="contact-label">Contact</h2>
+    <div class="stack">
+      {
+        SITE.email && (
+          <p class="contact-lead">
+            The best way to reach me is by email:
+            <br />
+            <a class="email" href={`mailto:${SITE.email}`}>
+              {SITE.email}
+            </a>
+          </p>
+        )
+      }
+      {
+        links.length > 0 && (
+          <ul class="links">
+            {links.map((link) => (
+              <li>
+                <a href={link.href} rel="me noopener">
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    padding-bottom: clamp(2.5rem, 7vw, 4.5rem);
+  }
+
+  h1 {
+    font-size: clamp(2.75rem, 9vw, 5rem);
+    font-weight: 380;
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  .tagline {
+    margin-top: 1.5rem;
+    max-width: 34rem;
+    font-size: clamp(1.125rem, 2.4vw, 1.3rem);
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+
+  .now {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 2rem;
+    padding: 0.4rem 0.9rem 0.4rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 0.9rem;
+    color: var(--ink-2);
+    max-width: 100%;
+  }
+
+  .now-label {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .dot {
+    position: relative;
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2.4s ease-out infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    70%,
+    100% {
+      transform: scale(3);
+      opacity: 0;
+    }
+  }
+
+  .about {
+    font-size: 1.125rem;
+    max-width: 36rem;
+  }
+
+  .about p:first-child {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+  }
+
+  .projects {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .projects li + li {
+    border-top: 1px dashed var(--rule);
+  }
+
+  .project {
+    display: block;
+    padding-block: 0.9rem;
+    text-decoration: none;
+    border-radius: 6px;
+  }
+
+  .projects li:first-child .project {
+    padding-top: 0;
+  }
+
+  .project-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .project-name {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    line-height: 1.3;
+  }
+
+  .arrow {
+    display: inline-block;
+    margin-left: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.9em;
+    color: var(--ink-3);
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  a.project:hover {
+    color: var(--ink);
+  }
+
+  a.project:hover .project-name {
+    color: var(--accent);
+  }
+
+  a.project:hover .arrow {
+    color: var(--accent);
+    transform: translate(2px, -2px);
+  }
+
+  .project-year {
+    font-size: 0.875rem;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .project-desc {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--ink-2);
+    max-width: 34rem;
+  }
+
+  .all {
+    margin-top: 1.25rem;
+    font-size: 0.9375rem;
+  }
+
+  .all a {
+    color: var(--ink-2);
+  }
+
+  .all a:hover {
+    color: var(--accent);
+  }
+
+  .contact-lead {
+    color: var(--ink-2);
+  }
+
+  .email {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-family: var(--font-serif);
+    font-size: clamp(1.35rem, 4.5vw, 1.75rem);
+    color: var(--ink);
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .email:hover {
+    color: var(--accent);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .links a {
+    display: inline-block;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+
+  .links a:hover {
+    border-color: var(--accent);
+  }
+</style>
